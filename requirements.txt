@@ -1,0 +1,46 @@
+# Core
+langchain
+langgraph
+openai
+google-cloud-vision
+python-dotenv
+
+# Image processing
+pillow
+opencv-python
+pyzbar
+
+# G-code generation utilities (optional)
+svgwrite  # useful if you go SVG -> G-code later
+svgwrite==1.4.3
+svgpathtools==1.6.1
+svg2gcode==3.2.3
+
+
+#shapely    # geometry manipulation
+notebook
+
+# For dev
+ipykernel
+
+
+langchain-openai
+tiktoken
+pydantic
+
+paddleocr
+paddlepaddle 
+transformers
+accelerate
+torch
+torchvision
+matplotlib
+
+numpy==1.24.4
+torch==2.0.1
+easyocr==1.7.1
+
+
+
+
+
