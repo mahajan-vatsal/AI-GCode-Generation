@@ -2,7 +2,6 @@
 langchain
 langgraph
 openai
-google-cloud-vision
 python-dotenv
 
 # Image processing
@@ -17,13 +16,6 @@ svgpathtools==1.6.1
 svg2gcode==3.2.3
 
 
-#shapely    # geometry manipulation
-notebook
-
-# For dev
-ipykernel
-
-
 langchain-openai
 tiktoken
 pydantic
@@ -32,12 +24,11 @@ paddleocr
 paddlepaddle 
 transformers
 accelerate
-torch
 torchvision
 matplotlib
 
-numpy==1.24.4
-torch==2.0.1
+numpy>=1.26.4
+torch>=2.1.0
 easyocr==1.7.1
 
 
