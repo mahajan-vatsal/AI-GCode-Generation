@@ -20,7 +20,7 @@ def encode_image_base64(image_path):
 base_prompt = """
 You are an intelligent assistant that extracts structured data from an image of a business card.
 
-The image is a business card sized 90x50mm. The origin (0,0) is at the bottom-left corner.
+The image is a business card sized 85x54mm. The origin (0,0) is at the bottom-left corner.
 Also mention which VLM model you are using to extract the information.
 
 Please analyze the layout and return ONLY a JSON object with fields like:
