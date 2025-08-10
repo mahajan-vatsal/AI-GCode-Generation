@@ -1,6 +1,6 @@
 # AI G‑Code Generation
 
-Turn a photograph of a business card into a ready‑to‑engrave laser job. This project stitches together a vision model, a language model, image processing and G‑code generation so you can rebuild and customise physical cards with ease. Snap a picture, watch the AI extract the contact details and layout, edit the design if you feel like it, and end up with G‑code and previews for your laser engraver.
+Turn a photograph of a business card into a ready‑to‑engrave laser job. This project brings together a vision model, a language model, image processing and G‑code generation so you can rebuild and customise physical cards with ease. Snap a picture, watch the AI extract the contact details and layout, edit the design if you feel like it, and end up with G‑code and previews for your laser engraver.
 
 ---
 
@@ -14,16 +14,16 @@ When you look at a business card you don’t just see text – you see logos, ic
 
 1. **Vision‑language extraction** – A Qwen2.5‑VL model recognises names, titles, phone numbers, emails, addresses, websites, QR codes, NFC chips, company logos and other icons from a card image. It returns structured JSON so you can re‑use the data.
 2. **Layout analysis** – The same model also produces bounding boxes for text, logos and icons. Those coordinates are converted into millimetres on an 85×54 mm card so that the geometry is preserved.
-2. **Layout analysis** – The same model also produces bounding boxes for text, logos and icons. Those coordinates are converted into millimetres on an 85×54 mm card so that the geometry is preserved.
 3. **Automatic SVG generation** – From the extracted data the code assembles an SVG business card. It embeds the original or replacement logos, draws a QR code if one was detected, positions text, and includes optional NFC chip templates from the **assets/nfc_templates** folder.
-4. **Interactive editing** – The pipeline pauses to let you refine the design. You can either accept the generated SVG or ask for changes. Instructions like “move 3 to x=20,y=30” or “replace 6 with ‘Senior Developer’” are parsed and applied to the SVG 5. An LLM (Mistral 7B via OpenRouter) can also convert natural language instructions into these edit commands.
+4. **Interactive editing** – The pipeline pauses to let you refine the design. You can either accept the generated SVG or ask for changes. Instructions like “move 3 to x=20,y=30” or “replace 6 with ‘Senior Developer’” are parsed and applied to the SVG. An LLM (Mistral 7B via OpenRouter) can also convert natural language instructions into these edit commands.
 5. **Rasterisation and binarisation** – The final SVG is rendered to a PNG and then binarised into a black‑and‑white image ready for engraving.
 6. **G‑code generation & preview** – The black‑and‑white image is scanned line by line to produce G‑code that controls laser power on dark pixels and travels quickly over white pixels. A preview tool plots the laser path on a canvas so you can check it before engraving.
 
 
 ---
 
-## 🚀 What It Does
+## 🛠 How it works
+
 1. **Extract information** — The **ocr_agent** uses an advanced vision model (via Fireworks/OpenAI) to read the card and return structured JSON fields (name, title, contact details, conference info, etc.).
 2. **Detect layout elements** —The **visual_analysis_agent** calls a vision language model (Qwen2.5‑VL) to detect bounding boxes for all visual items (text, logos, QR code, NFC chip) and enriches them with sizes in millimetres.
 3. **Generate SVG design** — The **svg_agent** assembles an SVG from the detected text blocks, logos, icons and optional user overrides. It can embed QR codes and NFC icons and flips the Y‑axis to match millimetre coordinates.
@@ -33,6 +33,48 @@ When you look at a business card you don’t just see text – you see logos, ic
 7. **Preview G‑code** – The **gcode_preview_agent** parses G‑code, scales it to fit a canvas and draws the toolpath so you can visualise the engraving before running it.
 
 The entire sequence is orchestrated via a LangGraph graph in **graph/main_graph.py**. Users can choose to edit the SVG or proceed directly to rasterization and G‑code generation.
+
+
+---
+
+## 📊 LangGraph Flow
+Below is the actual LangGraph pipeline used in this project:
+
+<img width="500" height="500" alt="Langgraph flow" src="https://github.com/user-attachments/assets/c3f595e6-398b-45b5-be69-f8b26365d99d" />
+
+---
+
+## 🚀 Example Workflow — From Card to Code
+
+1. **📷 Upload Your Business Card**  
+   Provide an image (`.jpg`, `.png`, or scanned PDF).  
+   The system reads it in and preps for analysis.
+
+2. **🔍 Layout & Element Detection**  
+   **Visual Analysis Agent** finds logos, text blocks, QR codes, NFC chips.  
+   Output: structured layout map.
+
+3. **✏️ OCR & Semantic Mapping**  
+   **OCR Agent** extracts text content.  
+   **SVG Mapper Agent** maps items into meaningful IDs (e.g., `logo_top_left`, `name_center`).
+
+4. **🖌️ AI-Powered SVG Design**  
+   **SVG Agent** creates a vector business card design.  
+   Logos are traced into vector paths for crisp engraving.
+
+5. **🛠️ Intelligent Editing**  
+   Ask the system: *“Move logo to top-right”* → instantly updates SVG via **LLM-SVG Agent**.
+
+6. **🖼️ Rasterization & Binarization**  
+   **Rasterization Agent** converts SVG to PNG.  
+   **Binarization** ensures clean black/white separation for engraving.
+
+7. **🖋️ Laser-Ready G-Code**  
+   **G-Code Agent** generates optimized toolpaths. 
+   Supports raster engraving for smooth fills.
+
+8. **👀 Preview & Export**  
+   **G-Code Preview Agent** renders the final toolpaths before you hit the laser.
 
 ---
 
@@ -91,45 +133,6 @@ langgraph dev
 - **output_edited.gcode** – the final G‑code file ready for your CNC or laser engraver.
 
 
-
 ---
 
-## 📊 LangGraph Flow
-Below is the actual LangGraph pipeline used in this project:
-
-<img width="500" height="500" alt="Langgraph flow" src="https://github.com/user-attachments/assets/c3f595e6-398b-45b5-be69-f8b26365d99d" />
-
-
----
-
-## 🚀 Example Workflow — From Card to Code
-
-1. **📷 Upload Your Business Card**  
-   Provide an image (`.jpg`, `.png`, or scanned PDF).  
-   The system reads it in and preps for analysis.
-
-2. **🔍 Layout & Element Detection**  
-   **Visual Analysis Agent** finds logos, text blocks, QR codes, NFC chips.  
-   Output: structured layout map.
-
-3. **✏️ OCR & Semantic Mapping**  
-   **OCR Agent** extracts text content.  
-   **SVG Mapper Agent** maps items into meaningful IDs (e.g., `logo_top_left`, `name_center`).
-
-4. **🖌️ AI-Powered SVG Design**  
-   **SVG Agent** creates a vector business card design.  
-   Logos are traced into vector paths for crisp engraving.
-
-5. **🛠️ Intelligent Editing**  
-   Ask the system: *“Move logo to top-right”* → instantly updates SVG via **LLM-SVG Agent**.
-
-6. **🖼️ Rasterization & Binarization**  
-   **Rasterization Agent** converts SVG to PNG.  
-   **Binarization** ensures clean black/white separation for engraving.
-
-7. **🖋️ Laser-Ready G-Code**  
-   **G-Code Agent** generates optimized toolpaths. 
-   Supports raster engraving for smooth fills.
-
-8. **👀 Preview & Export**  
-   **G-Code Preview Agent** renders the final toolpaths before you hit the laser.
+## 🖼 Output Example
