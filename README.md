@@ -76,7 +76,7 @@ FIREWORKS_API_KEY=your_fireworks_key_here
 OPENROUTER_API_KEY=your_openrouter_key_here
 #Langgraph for defining the Workflow
 LANGCHAIN_PROJECT=AI-GCode-Generator
-export LANGCHAIN_API_KEY=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
+export LANGCHAIN_API_KEY=your_langchain_key_here
 export LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_TRACING=true
 LANGSMITH_PROJECT=AI-GCode-Generator
