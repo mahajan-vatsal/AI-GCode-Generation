@@ -107,7 +107,8 @@ git clone https://github.com/mahajan-vatsal/AI-GCode-Generation.git
 ```bash
 cd AI-GCode-Generation
 python3 -m nenv env
-source env/bin/activate
+source env/bin/activate (for macOS)
+source env\bin\activate (for Windows)
 pip install -r requirements.txt
 ```
 3. **API keys** – Create a **.env** file in the project root with the following keys:
