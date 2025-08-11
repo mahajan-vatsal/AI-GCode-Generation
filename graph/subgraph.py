@@ -8,7 +8,7 @@ from typing import TypedDict, Optional, Dict
 class SvgEditState(TypedDict, total=False):
     svg_path: str
     svg_content: Optional[str]
-    svg_id_patched_path: Optional[str]  # The SVG with IDs patched (input for editor)
+    svg_id_patched_path: Optional[str]
     svg_elements: Optional[Dict]
     edit_instruction: Optional[str]
     edit_commands: Optional[str]
@@ -16,9 +16,14 @@ class SvgEditState(TypedDict, total=False):
 def svg_mapper_node(state: SvgEditState) -> SvgEditState:
     if not state.get("svg_path"):
         raise ValueError("Missing 'svg_path' in state.")
-    state["svg_elements"] = parse_svg_semantic(state["svg_path"])
-    # Assume patched SVG path saved here by parse_svg_elements or return it separately
-    state["svg_id_patched_path"] = state["svg_path"].replace(".svg", "_with_ids.svg")
+
+    # ✅ Write the patched file and get the real path back
+    elements, patched_path = parse_svg_semantic(
+        state["svg_path"], 
+        save_id_patched_svg=True
+    )
+    state["svg_elements"] = elements
+    state["svg_id_patched_path"] = patched_path or state["svg_path"]
     return state
 
 def svg_instruction_node(state: SvgEditState) -> SvgEditState:

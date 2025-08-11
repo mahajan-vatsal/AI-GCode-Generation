@@ -47,20 +47,31 @@ Don't perform any action that is not explicitly requested by the user.
 """
     return prompt
 
-def generate_edit_commands(prompt, max_tokens=300):
+SYSTEM_MSG = """You write ONLY edit commands for an SVG editor. 
+Valid commands (one per line), nothing else:
+- move <element_id> to x=<number> y=<number>
+- move_by <element_id> dx=<number> dy=<number>
+- delete <element_id>
+- replace <element_id> with '<new_text_or_image_href>'
+
+Rules:
+- No explanations or prose.
+- No variables or expressions. Only numbers.
+- Do NOT change element IDs or suggest creating IDs.
+- Use move_by for relative movement when user says 'left/right/up/down by ...'.
+- If instruction is unclear or impossible with these commands, output nothing."""
+
+def generate_edit_commands(prompt, max_tokens=200):
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[
+            {"role": "system", "content": SYSTEM_MSG},
             {"role": "user", "content": prompt}
         ],
-        extra_headers={
-            "HTTP-Referer": REFERER,
-            "X-Title": TITLE,
-        },
+        extra_headers={"HTTP-Referer": REFERER, "X-Title": TITLE},
         max_tokens=max_tokens,
-        temperature=0.4,
+        temperature=0.2,
     )
-
     return response.choices[0].message.content.strip()
 
 def llm_svg_node(state):

@@ -34,9 +34,11 @@ class WorkflowState(TypedDict, total=False):
     material_settings: Optional[Dict]
     choice: Optional[str]
     preview_count: Optional[int]
-    svg_id_patched_path = Optional[str]  # Path to ID-patched SVG
+    svg_id_patched_path: Optional[str]  # Path to ID-patched SVG
     svg_elements: Optional[Dict] # List of SVG elements for editing
     edit_commands: Optional[str]  # Commands for editing SVG
+    svg_version: int
+    svg_history: List[str]
 
 # -------------------------
 # Node Definitions
