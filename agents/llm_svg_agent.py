@@ -22,11 +22,15 @@ def prepare_prompt(svg_elements, user_instruction):
     prompt = f"""
 You are a helpful assistant that edits SVG business cards.
 
+Coordinate system: The origin is BOTTOM-LEFT. Increasing y goes UP.
+
 You are given a list of elements from an SVG file. Each element has:
 - id
 - type (text or image)
-- content (text or href)
-- x, y (position)
+- content (text or href basename)
+- x, y (bottom-left mm)
+- width, height (mm if available)
+- role (heuristic: logo / qr / nfc / text)
 - position label (e.g., top-left, center-right)
 
 SVG Elements:
@@ -37,29 +41,39 @@ User wants to make the following changes:
 {user_instruction}
 \"\"\"
 
-Only use `move` when the user explicitly requests it. Prefer referencing element IDs over guessing.
-Respond ONLY with actionable edit commands in one of these formats:
+Rules for targeting:
+- Always select by the exact element id from the list above.
+- Prefer elements whose 'role' matches the user's intent (e.g., nfc, qr, logo).
+- Use absolute 'move' only if the user gives explicit absolute coordinates.
+- Use 'move_by' for relative motions like left/right/up/down by N.
+
+Respond ONLY with actionable edit commands (one per line), using this grammar:
 - move <element_id> to x=<x_value> y=<y_value>
+- move_by <element_id> dx=<number> dy=<number>
 - delete <element_id>
 - replace <element_id> with '<new_text_or_image>'
 
-Don't perform any action that is not explicitly requested by the user.
+Do not output anything else.
 """
     return prompt
 
-SYSTEM_MSG = """You write ONLY edit commands for an SVG editor. 
-Valid commands (one per line), nothing else:
+SYSTEM_MSG = """You write ONLY edit commands for an SVG editor.
+Valid commands (one per line):
 - move <element_id> to x=<number> y=<number>
 - move_by <element_id> dx=<number> dy=<number>
 - delete <element_id>
 - replace <element_id> with '<new_text_or_image_href>'
+
+Assumptions:
+- The origin is bottom-left; increasing y moves up.
 
 Rules:
 - No explanations or prose.
 - No variables or expressions. Only numbers.
 - Do NOT change element IDs or suggest creating IDs.
 - Use move_by for relative movement when user says 'left/right/up/down by ...'.
-- If instruction is unclear or impossible with these commands, output nothing."""
+- If instruction is unclear or impossible with these commands, output nothing.
+"""
 
 def generate_edit_commands(prompt, max_tokens=200):
     response = client.chat.completions.create(

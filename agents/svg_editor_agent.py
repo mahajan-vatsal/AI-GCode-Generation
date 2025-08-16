@@ -3,21 +3,33 @@ import re
 from pathlib import Path
 import os
 
-
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
 ET.register_namespace("", SVG_NS)
 ET.register_namespace("xlink", XLINK_NS)
 NS = {"svg": SVG_NS, "xlink": XLINK_NS}
 
+# Keep CANVAS_HEIGHT consistent with mapper (bottom-left origin for API)
+CANVAS_HEIGHT = 54.0  # mm
+
+def to_svg_y(y_bottom_left: float) -> float:
+    """Convert bottom-left y to SVG top-left y."""
+    return CANVAS_HEIGHT - y_bottom_left
+
+def dy_to_svg(dy_bottom_left: float) -> float:
+    """Convert bottom-left dy to SVG dy (sign flip)."""
+    return -dy_bottom_left
+
+# Allow typical XML id characters: letters, digits, _, -, :, .
+ID = r"([A-Za-z_][A-Za-z0-9_\-:.]*)"
 
 # Accept move_by with optional dy (defaults to 0)
-MOVE_BY_REGEX = r"move_by\s+(\w+)\s+dx=([-+]?\d*\.?\d+)(?:\s+dy=([-+]?\d*\.?\d+))?"
+MOVE_BY_REGEX = rf"move_by\s+{ID}\s+dx=([-+]?\d*\.?\d+)(?:\s+dy=([-+]?\d*\.?\d+))?"
 # Also accept absolute move
-MOVE_REGEX = r"move\s+(\w+)\s+to\s+x=([-+]?\d*\.?\d+)\s+y=([-+]?\d*\.?\d+)"
-REPLACE_REGEX = r"replace\s+(\w+)\s+(?:with\s+)?['\"](.+?)['\"]"
-DELETE_REGEX = r"delete\s+(\w+)"
-_VERSION_RE = re.compile(r"^(?P<stem>.*?)(?:_v(?P<n>\d{3}))?\.svg$", re.I)
+MOVE_REGEX    = rf"move\s+{ID}\s+to\s+x=([-+]?\d*\.?\d+)\s+y=([-+]?\d*\.?\d+)"
+REPLACE_REGEX = rf"replace\s+{ID}\s+(?:with\s+)?['\"](.+?)['\"]"
+DELETE_REGEX  = rf"delete\s+{ID}"
+_VERSION_RE   = re.compile(r"^(?P<stem>.*?)(?:_v(?P<n>\d{3}))?\.svg$", re.I)
 
 def parse_commands(commands_str: str):
     commands = []
@@ -29,7 +41,7 @@ def parse_commands(commands_str: str):
         m = re.match(MOVE_BY_REGEX, line, re.I)
         if m:
             dx = float(m.group(2))
-            dy = float(m.group(3)) if m.group(3) is not None else 0.0  # ✅ default dy
+            dy = float(m.group(3)) if m.group(3) is not None else 0.0  # default dy
             commands.append({"action": "move_by", "id": m.group(1), "dx": dx, "dy": dy})
             continue
 
@@ -56,7 +68,7 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
     if not commands:
         raise ValueError(f"No commands recognized by parser. Raw:\n{commands_str}")
 
-    tree = ET.parse(svg_input_path)   # will work if path exists
+    tree = ET.parse(svg_input_path)
     root = tree.getroot()
 
     def first_float(val):
@@ -66,7 +78,8 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
 
     for cmd in commands:
         elem_id = cmd["id"]
-        elem = root.find(f".//*[@id='{elem_id}']", NS)
+        # This lookup doesn't need namespace prefixes since it's attribute matching
+        elem = root.find(f".//*[@id='{elem_id}']")
         if elem is None:
             print(f"⚠️ Element with id '{elem_id}' not found.")
             continue
@@ -77,26 +90,34 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
             if tag in ["text", "image"]:
                 cur_x = first_float(elem.get("x"))
                 cur_y = first_float(elem.get("y"))
-                elem.set("x", str(cur_x + cmd["dx"]))
-                elem.set("y", str(cur_y + cmd["dy"]))
+                # x increases to the right in both systems
+                new_x = cur_x + cmd["dx"]
+                # y flip because editor writes SVG top-left; incoming dy is bottom-left
+                new_y = cur_y + dy_to_svg(cmd["dy"])
+                elem.set("x", str(new_x))
+                elem.set("y", str(new_y))
             else:
                 prev = (elem.get("transform") or "").strip()
-                elem.set("transform", f"{prev} translate({cmd['dx']} {cmd['dy']})".strip())
-            print(f"✅ Moved '{elem_id}' by dx={cmd['dx']}, dy={cmd['dy']}")
+                dx = cmd["dx"]
+                dy = dy_to_svg(cmd["dy"])
+                elem.set("transform", f"{prev} translate({dx} {dy})".strip())
+            print(f"✅ Moved '{elem_id}' by dx={cmd['dx']}, dy={cmd['dy']} (bottom-left dy)")
 
         elif cmd["action"] == "move":
             if tag in ["text", "image"]:
                 elem.set("x", str(cmd["x"]))
-                elem.set("y", str(cmd["y"]))
-                print(f"✅ Moved '{elem_id}' to x={cmd['x']}, y={cmd['y']}")
+                # absolute y given in bottom-left; convert to SVG y
+                elem.set("y", str(to_svg_y(cmd["y"])))
+                print(f"✅ Moved '{elem_id}' to x={cmd['x']}, y={cmd['y']} (bottom-left)")
             else:
                 prev = (elem.get("transform") or "").strip()
-                # best-effort: absolute becomes a translate
-                elem.set("transform", f"{prev} translate({cmd['x']} {cmd['y']})".strip())
-                print(f"✅ Applied translate({cmd['x']} {cmd['y']}) to '{elem_id}'")
+                # best-effort: absolute becomes a translate; convert bottom-left y to SVG delta baseline
+                elem.set("transform", f"{prev} translate({cmd['x']} {to_svg_y(cmd['y'])})".strip())
+                print(f"✅ Applied translate({cmd['x']} {to_svg_y(cmd['y'])}) to '{elem_id}' (best-effort)")
 
         elif cmd["action"] == "delete":
-            parent = root.find(f".//*[@id='{elem_id}']/..", NS)
+            # Find parent via XPath
+            parent = root.find(f".//*[@id='{elem_id}']/..")
             if parent is not None:
                 parent.remove(elem)
                 print(f"✅ Deleted element '{elem_id}'")
@@ -131,7 +152,7 @@ def next_version_path(current_svg_path: str) -> str:
         # Fallback: append v002
         return str(p.with_name(p.stem + "_v002.svg"))
     stem = m.group("stem") or p.stem
-    n = int(m.group("n")) + 1 if m.group("n") else 2  # treat unversioned as v001 → next = v002
+    n = int(m.group("n")) + 1 if m.group("n") else 2  # unversioned as v001 → next v002
     return str(p.with_name(f"{stem}_v{n:03d}.svg"))
 
 def svg_editor_node(state):
@@ -158,8 +179,7 @@ def svg_editor_node(state):
     if not commands.strip():
         raise ValueError("No valid edit commands parsed from LLM output.")
 
-    # ✅ NEW: write to a next versioned file based on the CURRENT (non-patched) svg_path
-    # Always use the *real* current svg_path as the base for the version name
+    # Write to a new versioned file based on the *current* svg_path
     base_for_version = state.get("svg_path") or input_path
     output_path = next_version_path(base_for_version)
 
@@ -168,7 +188,7 @@ def svg_editor_node(state):
     with open(output_path, "r", encoding="utf-8") as f:
         state["svg_content"] = f.read()
 
-    # ✅ Point the workflow to the new version going forward
+    # Point workflow to the new version going forward
     state["svg_path"] = output_path
     state["svg_history"] = (state.get("svg_history") or []) + [state["svg_path"]]
     state["svg_version"] = (state.get("svg_version") or 1) + 1
