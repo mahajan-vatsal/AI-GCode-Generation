@@ -24,13 +24,13 @@ You are a helpful assistant that edits SVG business cards.
 
 Coordinate system: The origin is BOTTOM-LEFT. Increasing y goes UP.
 
-You are given a list of elements from an SVG file. Each element has:
+Each element includes:
 - id
 - type (text or image)
-- content (text or href basename)
+- content (text or basename)
 - x, y (bottom-left mm)
 - width, height (mm if available)
-- role (heuristic: logo / qr / nfc / text)
+- role (logo / qr / nfc / icon / text)
 - position label (e.g., top-left, center-right)
 
 SVG Elements:
@@ -41,19 +41,17 @@ User wants to make the following changes:
 {user_instruction}
 \"\"\"
 
-Rules for targeting:
-- Always select by the exact element id from the list above.
-- Prefer elements whose 'role' matches the user's intent (e.g., nfc, qr, logo).
-- Use absolute 'move' only if the user gives explicit absolute coordinates.
-- Use 'move_by' for relative motions like left/right/up/down by N.
+STRICT targeting rules:
+- If the user mentions NFC, choose ONLY elements with role == "nfc". If none exist, output nothing.
+- If the user mentions QR, choose ONLY elements with role == "qr". If none exist, output nothing.
+- If the user mentions logo, choose elements with role == "logo".
+- Never choose text elements when the user refers to NFC/QR/logo/icon.
 
-Respond ONLY with actionable edit commands (one per line), using this grammar:
+Respond ONLY with edit commands (one per line):
 - move <element_id> to x=<x_value> y=<y_value>
 - move_by <element_id> dx=<number> dy=<number>
 - delete <element_id>
 - replace <element_id> with '<new_text_or_image>'
-
-Do not output anything else.
 """
     return prompt
 
@@ -71,8 +69,8 @@ Rules:
 - No explanations or prose.
 - No variables or expressions. Only numbers.
 - Do NOT change element IDs or suggest creating IDs.
-- Use move_by for relative movement when user says 'left/right/up/down by ...'.
-- If instruction is unclear or impossible with these commands, output nothing.
+- Select elements whose role matches the user's target (nfc/qr/logo/icon). If none, output nothing.
+- Use move_by for relative movement (left/right/up/down by ...).
 """
 
 def generate_edit_commands(prompt, max_tokens=200):
