@@ -82,7 +82,9 @@ Rules:
 - Do NOT change element IDs or suggest creating IDs.
 - Select elements whose role matches the user's target (nfc/qr/logo/icon). If none, output nothing.
 - Use move_by for relative movement (left/right/up/down by ...).
-- For TEXT or IMAGE content changes, use ONLY 'replace' (never 'delete' and 'replace' on the same element)."""
+- For TEXT or IMAGE content changes, use ONLY 'replace' (never 'delete' and 'replace' on the same element).
+- For logo/icon/qr/nfc image swaps, output the asset NAME only (e.g., 'xyz_logo' without path or extension). The system will resolve it to a local asset.
+"""
 
 
 def generate_edit_commands(prompt, max_tokens=200):

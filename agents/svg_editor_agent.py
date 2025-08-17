@@ -2,6 +2,8 @@ import xml.etree.ElementTree as ET
 import re
 from pathlib import Path
 import os
+import base64
+import mimetypes
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
@@ -27,14 +29,82 @@ ID = r"([A-Za-z_][A-Za-z0-9_\-:.]*)"
 MOVE_BY_REGEX = rf"move_by\s+{ID}\s+dx=([-+]?\d*\.?\d+)(?:\s+dy=([-+]?\d*\.?\d+))?"
 # Absolute move
 MOVE_REGEX    = rf"move\s+{ID}\s+to\s+x=([-+]?\d*\.?\d+)\s+y=([-+]?\d*\.?\d+)"
-# NEW: absolute resize (in mm)
+# Absolute resize (in mm)
 RESIZE_REGEX  = rf"resize\s+{ID}\s+to\s+width=([-+]?\d*\.?\d+)\s+height=([-+]?\d*\.?\d+)"
-# NEW: relative scale (uniform: s=..., or non-uniform: sx=... sy=...)
+# Relative scale (uniform or non-uniform)
 SCALE_BY_UNI  = rf"scale_by\s+{ID}\s+s=([-+]?\d*\.?\d+)"
 SCALE_BY_BI   = rf"scale_by\s+{ID}\s+sx=([-+]?\d*\.?\d+)\s+sy=([-+]?\d*\.?\d+)"
 REPLACE_REGEX = rf"replace\s+{ID}\s+(?:with\s+)?['\"](.+?)['\"]"
 DELETE_REGEX  = rf"delete\s+{ID}"
 _VERSION_RE   = re.compile(r"^(?P<stem>.*?)(?:_v(?P<n>\d{3}))?\.svg$", re.I)
+
+# -------- NEW: asset resolver (additive) --------
+ASSET_SEARCH_DIRS = [
+    ".", "assets", "assets/logos", "assets/icons", "assets/nfc_templates"
+]
+ASSET_EXTS = [".png", ".svg", ".jpg", ".jpeg", ".webp"]
+
+def _guess_mime(path: Path) -> str:
+    mime, _ = mimetypes.guess_type(str(path))
+    # Fallbacks for common image types if mimetypes misses
+    if not mime:
+        if path.suffix.lower() == ".svg":
+            mime = "image/svg+xml"
+        elif path.suffix.lower() in (".jpg", ".jpeg"):
+            mime = "image/jpeg"
+        elif path.suffix.lower() == ".png":
+            mime = "image/png"
+        elif path.suffix.lower() == ".webp":
+            mime = "image/webp"
+        else:
+            mime = "application/octet-stream"
+    return mime
+
+def _find_asset_path(token: str) -> Path | None:
+    # If token already looks like a path with extension
+    cand = Path(token)
+    if cand.suffix:
+        # If not absolute, try in search dirs
+        if cand.is_file():
+            return cand
+        for d in ASSET_SEARCH_DIRS:
+            p = Path(d) / cand
+            if p.is_file():
+                return p
+    else:
+        # Try each ext in each dir
+        for d in ASSET_SEARCH_DIRS:
+            for ext in ASSET_EXTS:
+                p = Path(d) / f"{token}{ext}"
+                if p.is_file():
+                    return p
+    return None
+
+def _to_data_uri(path: Path) -> str:
+    mime = _guess_mime(path)
+    data = path.read_bytes()
+    b64 = base64.b64encode(data).decode("utf-8")
+    return f"data:{mime};base64,{b64}"
+
+def _resolve_image_href(token: str) -> str:
+    """
+    Resolve a replace payload for <image>:
+      - if token starts with 'data:' -> return as-is
+      - if token looks like URL (http/https) -> return as-is
+      - else: treat token as an asset name/path, try to find it and embed as data URI
+      - if not found: fall back to raw token (so previous behavior still works)
+    """
+    t = (token or "").strip()
+    if t.startswith("data:") or t.startswith("http://") or t.startswith("https://"):
+        return t
+    p = _find_asset_path(t)
+    if p:
+        try:
+            return _to_data_uri(p)
+        except Exception as e:
+            print(f"⚠️ Failed to embed asset '{p}': {e}. Using raw token.")
+    return t
+# -------- END: asset resolver --------
 
 def parse_commands(commands_str: str):
     commands = []
@@ -46,7 +116,7 @@ def parse_commands(commands_str: str):
         m = re.match(MOVE_BY_REGEX, line, re.I)
         if m:
             dx = float(m.group(2))
-            dy = float(m.group(3)) if m.group(3) is not None else 0.0  # default dy
+            dy = float(m.group(3)) if m.group(3) is not None else 0.0
             commands.append({"action": "move_by", "id": m.group(1), "dx": dx, "dy": dy})
             continue
 
@@ -55,20 +125,17 @@ def parse_commands(commands_str: str):
             commands.append({"action": "move", "id": m.group(1), "x": float(m.group(2)), "y": float(m.group(3))})
             continue
 
-        # NEW: resize absolute
         m = re.match(RESIZE_REGEX, line, re.I)
         if m:
             commands.append({"action": "resize", "id": m.group(1), "width": float(m.group(2)), "height": float(m.group(3))})
             continue
 
-        # NEW: scale_by uniform
         m = re.match(SCALE_BY_UNI, line, re.I)
         if m:
             s = float(m.group(2))
             commands.append({"action": "scale_by", "id": m.group(1), "sx": s, "sy": s})
             continue
 
-        # NEW: scale_by non-uniform
         m = re.match(SCALE_BY_BI, line, re.I)
         if m:
             commands.append({"action": "scale_by", "id": m.group(1), "sx": float(m.group(2)), "sy": float(m.group(3))})
@@ -87,11 +154,8 @@ def parse_commands(commands_str: str):
         print(f"⚠️ Warning: Could not parse command line: {line}")
     return commands
 
+# ---- additive safety: avoid delete+replace conflict on same id
 def normalize_commands(commands):
-    """
-    Additive safety: if both 'delete' and 'replace' exist for the same element id
-    in one batch, skip the 'delete' so 'replace' can succeed. No change to other logic.
-    """
     ids_with_replace = {c["id"] for c in commands if c["action"] == "replace"}
     if not ids_with_replace:
         return commands
@@ -102,7 +166,6 @@ def normalize_commands(commands):
             continue
         normalized.append(c)
     return normalized
-
 
 def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
     commands = parse_commands(commands_str)
@@ -121,7 +184,6 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
 
     for cmd in commands:
         elem_id = cmd["id"]
-        # Attribute match doesn't need explicit NS
         elem = root.find(f".//*[@id='{elem_id}']")
         if elem is None:
             print(f"⚠️ Element with id '{elem_id}' not found.")
@@ -154,7 +216,6 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
                 elem.set("transform", f"{prev} translate({cmd['x']} {to_svg_y(cmd['y'])})".strip())
                 print(f"✅ Applied translate({cmd['x']} {to_svg_y(cmd['y'])}) to '{elem_id}' (best-effort)")
 
-        # NEW: absolute resize (mm). Keeps current x/y (top-left anchor for images).
         elif cmd["action"] == "resize":
             w = cmd["width"]
             h = cmd["height"]
@@ -163,7 +224,6 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
                 elem.set("height", str(h))
                 print(f"✅ Resized image '{elem_id}' to width={w}, height={h}")
             elif tag == "g":
-                # Try to resize common children (image/rect) inside the group
                 resized = False
                 for child in list(elem):
                     ctag = child.tag.split("}")[-1]
@@ -178,7 +238,6 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
             else:
                 print(f"⚠️ Resize not supported for tag '{tag}' (id='{elem_id}')")
 
-        # NEW: relative scale. For images: multiply width/height. For groups: append scale().
         elif cmd["action"] == "scale_by":
             sx = cmd["sx"]
             sy = cmd["sy"]
@@ -204,12 +263,29 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
                 print(f"⚠️ Could not find parent to delete element '{elem_id}'")
 
         elif cmd["action"] == "replace":
-            if tag == "text":
-                elem.text = cmd["content"]
-                print(f"✅ Replaced text in '{elem_id}' with '{cmd['content']}'")
-            elif tag == "image":
-                elem.set(f"{{{XLINK_NS}}}href", cmd["content"])
-                print(f"✅ Replaced image href in '{elem_id}' with '{cmd['content']}'")
+            content = cmd["content"]
+
+            # Image replacement: resolve assets/name → data URI (additive; old behavior still works)
+            if tag == "image":
+                href_val = _resolve_image_href(content)
+                elem.set(f"{{{XLINK_NS}}}href", href_val)
+                elem.set("href", href_val)  # keep both for broad viewer compatibility
+                print(f"✅ Replaced image href in '{elem_id}' with resolved asset '{content}'")
+
+            # If a logo is wrapped in a <g>, try to replace first child <image>
+            elif tag == "g":
+                img_child = elem.find(".//{http://www.w3.org/2000/svg}image")
+                if img_child is not None:
+                    href_val = _resolve_image_href(content)
+                    img_child.set(f"{{{XLINK_NS}}}href", href_val)
+                    img_child.set("href", href_val)
+                    print(f"✅ Replaced image inside group '{elem_id}' with '{content}'")
+                else:
+                    print(f"⚠️ Replace on group '{elem_id}' failed: no <image> child found")
+
+            elif tag == "text":
+                elem.text = content
+                print(f"✅ Replaced text in '{elem_id}' with '{content}'")
             else:
                 print(f"⚠️ Replace not supported for tag '{tag}'")
 
