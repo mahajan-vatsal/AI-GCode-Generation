@@ -47,11 +47,19 @@ STRICT targeting rules:
 - If the user mentions logo, choose elements with role == "logo".
 - Never choose text elements when the user refers to NFC/QR/logo/icon.
 
+Size changes:
+- Use 'resize <id> to width=<mm> height=<mm>' for absolute size in mm.
+- Use 'scale_by <id> s=<factor>' for uniform relative scaling.
+- Use 'scale_by <id> sx=<fx> sy=<fy>' for non-uniform relative scaling.
+
 Respond ONLY with edit commands (one per line):
 - move <element_id> to x=<x_value> y=<y_value>
 - move_by <element_id> dx=<number> dy=<number>
 - delete <element_id>
 - replace <element_id> with '<new_text_or_image>'
+- resize <element_id> to width=<number> height=<number>
+- scale_by <element_id> s=<number>
+- scale_by <element_id> sx=<number> sy=<number>
 """
     return prompt
 
@@ -61,6 +69,9 @@ Valid commands (one per line):
 - move_by <element_id> dx=<number> dy=<number>
 - delete <element_id>
 - replace <element_id> with '<new_text_or_image_href>'
+- resize <element_id> to width=<number> height=<number>
+- scale_by <element_id> s=<number>
+- scale_by <element_id> sx=<number> sy=<number>
 
 Assumptions:
 - The origin is bottom-left; increasing y moves up.
@@ -71,7 +82,8 @@ Rules:
 - Do NOT change element IDs or suggest creating IDs.
 - Select elements whose role matches the user's target (nfc/qr/logo/icon). If none, output nothing.
 - Use move_by for relative movement (left/right/up/down by ...).
-"""
+- For TEXT or IMAGE content changes, use ONLY 'replace' (never 'delete' and 'replace' on the same element)."""
+
 
 def generate_edit_commands(prompt, max_tokens=200):
     response = client.chat.completions.create(
