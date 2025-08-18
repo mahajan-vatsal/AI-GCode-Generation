@@ -36,9 +36,15 @@ SCALE_BY_UNI  = rf"scale_by\s+{ID}\s+s=([-+]?\d*\.?\d+)"
 SCALE_BY_BI   = rf"scale_by\s+{ID}\s+sx=([-+]?\d*\.?\d+)\s+sy=([-+]?\d*\.?\d+)"
 REPLACE_REGEX = rf"replace\s+{ID}\s+(?:with\s+)?['\"](.+?)['\"]"
 DELETE_REGEX  = rf"delete\s+{ID}"
+
+# NEW: add commands
+ADD_TEXT_REGEX  = rf"add_text\s+{ID}\s+at\s+x=([-+]?\d*\.?\d+)\s+y=([-+]?\d*\.?\d+)\s+text=['\"](.+?)['\"](?:\s+size=([-+]?\d*\.?\d+))?(?:\s+family=['\"](.+?)['\"])?(?:\s+weight=(normal|bold))?(?:\s+anchor=(start|middle|end))?"
+ADD_IMAGE_REGEX = rf"add_image\s+{ID}\s+at\s+x=([-+]?\d*\.?\d+)\s+y=([-+]?\d*\.?\d+)\s+width=([-+]?\d*\.?\d+)\s+height=([-+]?\d*\.?\d+)\s+src=['\"](.+?)['\"](?:\s+role=(logo|icon|qr|nfc|image))?(?:\s+name=['\"](.+?)['\"])?"
+ADD_LOGO_REGEX  = rf"add_logo\s+{ID}\s+at\s+x=([-+]?\d*\.?\d+)\s+y=([-+]?\d*\.?\d+)\s+width=([-+]?\d*\.?\d+)\s+height=([-+]?\d*\.?\d+)\s+src=['\"](.+?)['\"]"
+
 _VERSION_RE   = re.compile(r"^(?P<stem>.*?)(?:_v(?P<n>\d{3}))?\.svg$", re.I)
 
-# -------- NEW: asset resolver (additive) --------
+# -------- Asset resolver (existing) --------
 ASSET_SEARCH_DIRS = [
     ".", "assets", "assets/logos", "assets/icons", "assets/nfc_templates"
 ]
@@ -46,7 +52,6 @@ ASSET_EXTS = [".png", ".svg", ".jpg", ".jpeg", ".webp"]
 
 def _guess_mime(path: Path) -> str:
     mime, _ = mimetypes.guess_type(str(path))
-    # Fallbacks for common image types if mimetypes misses
     if not mime:
         if path.suffix.lower() == ".svg":
             mime = "image/svg+xml"
@@ -61,10 +66,8 @@ def _guess_mime(path: Path) -> str:
     return mime
 
 def _find_asset_path(token: str) -> Path | None:
-    # If token already looks like a path with extension
     cand = Path(token)
     if cand.suffix:
-        # If not absolute, try in search dirs
         if cand.is_file():
             return cand
         for d in ASSET_SEARCH_DIRS:
@@ -72,7 +75,6 @@ def _find_asset_path(token: str) -> Path | None:
             if p.is_file():
                 return p
     else:
-        # Try each ext in each dir
         for d in ASSET_SEARCH_DIRS:
             for ext in ASSET_EXTS:
                 p = Path(d) / f"{token}{ext}"
@@ -87,13 +89,6 @@ def _to_data_uri(path: Path) -> str:
     return f"data:{mime};base64,{b64}"
 
 def _resolve_image_href(token: str) -> str:
-    """
-    Resolve a replace payload for <image>:
-      - if token starts with 'data:' -> return as-is
-      - if token looks like URL (http/https) -> return as-is
-      - else: treat token as an asset name/path, try to find it and embed as data URI
-      - if not found: fall back to raw token (so previous behavior still works)
-    """
     t = (token or "").strip()
     if t.startswith("data:") or t.startswith("http://") or t.startswith("https://"):
         return t
@@ -104,7 +99,7 @@ def _resolve_image_href(token: str) -> str:
         except Exception as e:
             print(f"⚠️ Failed to embed asset '{p}': {e}. Using raw token.")
     return t
-# -------- END: asset resolver --------
+# -------- END asset resolver --------
 
 def parse_commands(commands_str: str):
     commands = []
@@ -151,6 +146,54 @@ def parse_commands(commands_str: str):
             commands.append({"action": "replace", "id": m.group(1), "content": m.group(2)})
             continue
 
+        # NEW: add_text
+        m = re.match(ADD_TEXT_REGEX, line, re.I)
+        if m:
+            commands.append({
+                "action": "add_text",
+                "id": m.group(1),
+                "x": float(m.group(2)),
+                "y": float(m.group(3)),
+                "text": m.group(4),
+                "size": float(m.group(5)) if m.group(5) else None,
+                "family": m.group(6) if m.group(6) else None,
+                "weight": (m.group(7) or "normal") if m.group(7) else "normal",
+                "anchor": (m.group(8) or "start") if m.group(8) else "start",
+            })
+            continue
+
+        # NEW: add_image
+        m = re.match(ADD_IMAGE_REGEX, line, re.I)
+        if m:
+            commands.append({
+                "action": "add_image",
+                "id": m.group(1),
+                "x": float(m.group(2)),
+                "y": float(m.group(3)),
+                "width": float(m.group(4)),
+                "height": float(m.group(5)),
+                "src": m.group(6),
+                "role": (m.group(7) or "image") if m.group(7) else "image",
+                "name": m.group(8) if m.group(8) else None,
+            })
+            continue
+
+        # NEW: add_logo (sugar over add_image with role=logo)
+        m = re.match(ADD_LOGO_REGEX, line, re.I)
+        if m:
+            commands.append({
+                "action": "add_image",
+                "id": m.group(1),
+                "x": float(m.group(2)),
+                "y": float(m.group(3)),
+                "width": float(m.group(4)),
+                "height": float(m.group(5)),
+                "src": m.group(6),
+                "role": "logo",
+                "name": None,
+            })
+            continue
+
         print(f"⚠️ Warning: Could not parse command line: {line}")
     return commands
 
@@ -167,6 +210,22 @@ def normalize_commands(commands):
         normalized.append(c)
     return normalized
 
+def _first_float(val):
+    if val is None or val == "":
+        return 0.0
+    return float(str(val).split()[0])
+
+def _ensure_unique_id(root, desired_id: str) -> str:
+    """If desired_id exists, append _2, _3, ... to make it unique."""
+    if not desired_id:
+        desired_id = "elem"
+    candidate = desired_id
+    i = 2
+    while root.find(f".//*[@id='{candidate}']") is not None:
+        candidate = f"{desired_id}_{i}"
+        i += 1
+    return candidate
+
 def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
     commands = parse_commands(commands_str)
     if not commands:
@@ -177,13 +236,65 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
     tree = ET.parse(svg_input_path)
     root = tree.getroot()
 
-    def first_float(val):
-        if val is None or val == "":
-            return 0.0
-        return float(str(val).split()[0])
-
     for cmd in commands:
-        elem_id = cmd["id"]
+        action = cmd["action"]
+
+        # ------- ADD TEXT -------
+        if action == "add_text":
+            new_id = _ensure_unique_id(root, cmd["id"])
+            text_el = ET.Element(f"{{{SVG_NS}}}text")
+            text_el.set("id", new_id)
+            text_el.set("x", str(cmd["x"]))
+            text_el.set("y", str(to_svg_y(cmd["y"])))
+            # Defaults; optional overrides
+            size = cmd.get("size") if cmd.get("size") is not None else 3.0
+            family = cmd.get("family") or "Arial"
+            weight = cmd.get("weight") or "normal"
+            anchor = cmd.get("anchor") or "start"
+            text_el.set("font-size", str(size))
+            text_el.set("font-family", family)
+            text_el.set("font-weight", weight)
+            text_el.set("text-anchor", anchor)
+            text_el.set("dominant-baseline", "text-before-edge")
+            text_el.set("fill", "black")
+            text_el.set("data-role", "text")
+            text_el.text = cmd["text"]
+            root.append(text_el)
+            print(f"✅ Added text '{new_id}' at ({cmd['x']}, {cmd['y']})")
+
+            continue  # next command
+
+        # ------- ADD IMAGE / LOGO -------
+        if action == "add_image":
+            new_id = _ensure_unique_id(root, cmd["id"])
+            href_val = _resolve_image_href(cmd["src"])
+            img_el = ET.Element(f"{{{SVG_NS}}}image")
+            img_el.set("id", new_id)
+            img_el.set("x", str(cmd["x"]))
+            # Consistent with current editor 'move' semantics
+            img_el.set("y", str(to_svg_y(cmd["y"])))
+            img_el.set("width", str(cmd["width"]))
+            img_el.set("height", str(cmd["height"]))
+            role = cmd.get("role") or "image"
+            img_el.set("data-role", role)
+            # Set data-name if we can resolve an asset file (helps mapper show correct name)
+            p = _find_asset_path(cmd["src"])
+            if p:
+                img_el.set("data-name", p.name)
+            # Set both href forms for compatibility
+            img_el.set(f"{{{XLINK_NS}}}href", href_val)
+            img_el.set("href", href_val)
+            root.append(img_el)
+            print(f"✅ Added {role} '{new_id}' at ({cmd['x']}, {cmd['y']}) size=({cmd['width']}x{cmd['height']})")
+
+            continue  # next command
+
+        # ------- EXISTING ACTIONS ON EXISTING ELEMENTS -------
+        elem_id = cmd.get("id")
+        if not elem_id:
+            print("⚠️ Command missing 'id'.")
+            continue
+
         elem = root.find(f".//*[@id='{elem_id}']")
         if elem is None:
             print(f"⚠️ Element with id '{elem_id}' not found.")
@@ -191,10 +302,10 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
 
         tag = elem.tag.split("}")[-1]
 
-        if cmd["action"] == "move_by":
+        if action == "move_by":
             if tag in ["text", "image"]:
-                cur_x = first_float(elem.get("x"))
-                cur_y = first_float(elem.get("y"))
+                cur_x = _first_float(elem.get("x"))
+                cur_y = _first_float(elem.get("y"))
                 new_x = cur_x + cmd["dx"]
                 new_y = cur_y + dy_to_svg(cmd["dy"])
                 elem.set("x", str(new_x))
@@ -206,7 +317,7 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
                 elem.set("transform", f"{prev} translate({dx} {dy})".strip())
             print(f"✅ Moved '{elem_id}' by dx={cmd['dx']}, dy={cmd['dy']} (bottom-left dy)")
 
-        elif cmd["action"] == "move":
+        elif action == "move":
             if tag in ["text", "image"]:
                 elem.set("x", str(cmd["x"]))
                 elem.set("y", str(to_svg_y(cmd["y"])))
@@ -216,7 +327,7 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
                 elem.set("transform", f"{prev} translate({cmd['x']} {to_svg_y(cmd['y'])})".strip())
                 print(f"✅ Applied translate({cmd['x']} {to_svg_y(cmd['y'])}) to '{elem_id}' (best-effort)")
 
-        elif cmd["action"] == "resize":
+        elif action == "resize":
             w = cmd["width"]
             h = cmd["height"]
             if tag == "image":
@@ -238,12 +349,12 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
             else:
                 print(f"⚠️ Resize not supported for tag '{tag}' (id='{elem_id}')")
 
-        elif cmd["action"] == "scale_by":
+        elif action == "scale_by":
             sx = cmd["sx"]
             sy = cmd["sy"]
             if tag == "image":
-                cur_w = first_float(elem.get("width"))
-                cur_h = first_float(elem.get("height"))
+                cur_w = _first_float(elem.get("width"))
+                cur_h = _first_float(elem.get("height"))
                 elem.set("width", str(cur_w * sx))
                 elem.set("height", str(cur_h * sy))
                 print(f"✅ Scaled image '{elem_id}' by sx={sx}, sy={sy}")
@@ -254,7 +365,7 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
             else:
                 print(f"⚠️ scale_by not supported for tag '{tag}' (id='{elem_id}')")
 
-        elif cmd["action"] == "delete":
+        elif action == "delete":
             parent = root.find(f".//*[@id='{elem_id}']/..")
             if parent is not None:
                 parent.remove(elem)
@@ -262,27 +373,30 @@ def apply_edit_commands_to_svg(svg_input_path, commands_str, svg_output_path):
             else:
                 print(f"⚠️ Could not find parent to delete element '{elem_id}'")
 
-        elif cmd["action"] == "replace":
+        elif action == "replace":
             content = cmd["content"]
-
-            # Image replacement: resolve assets/name → data URI (additive; old behavior still works)
             if tag == "image":
                 href_val = _resolve_image_href(content)
                 elem.set(f"{{{XLINK_NS}}}href", href_val)
                 elem.set("href", href_val)  # keep both for broad viewer compatibility
+                # Also (re)store a friendly name if we can resolve a local asset
+                p = _find_asset_path(content)
+                if p:
+                    elem.set("data-name", p.name)
                 print(f"✅ Replaced image href in '{elem_id}' with resolved asset '{content}'")
-
-            # If a logo is wrapped in a <g>, try to replace first child <image>
             elif tag == "g":
                 img_child = elem.find(".//{http://www.w3.org/2000/svg}image")
                 if img_child is not None:
                     href_val = _resolve_image_href(content)
                     img_child.set(f"{{{XLINK_NS}}}href", href_val)
                     img_child.set("href", href_val)
+                    p = _find_asset_path(content)
+                    if p:
+                        img_child.set("data-name", p.name)
+                        elem.set("data-name", p.name)
                     print(f"✅ Replaced image inside group '{elem_id}' with '{content}'")
                 else:
                     print(f"⚠️ Replace on group '{elem_id}' failed: no <image> child found")
-
             elif tag == "text":
                 elem.text = content
                 print(f"✅ Replaced text in '{elem_id}' with '{content}'")
@@ -296,7 +410,10 @@ def extract_valid_commands(command_str):
     valid = []
     for line in command_str.strip().splitlines():
         line = line.strip("`- ").strip()
-        if line.lower().startswith(("move_by", "move", "delete", "replace", "resize", "scale_by")):
+        if line.lower().startswith((
+            "move_by","move","delete","replace","resize","scale_by",
+            "add_text","add_image","add_logo"
+        )):
             valid.append(line)
     return "\n".join(valid)
 
@@ -345,3 +462,7 @@ def svg_editor_node(state):
     state["svg_version"] = (state.get("svg_version") or 1) + 1
     state["svg_id_patched_path"] = None
     return state
+
+
+
+#add_text tagline at x=10 y=6 text='Innovation for everyone' size=3.2

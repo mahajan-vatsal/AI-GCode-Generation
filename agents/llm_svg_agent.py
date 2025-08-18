@@ -52,6 +52,12 @@ Size changes:
 - Use 'scale_by <id> s=<factor>' for uniform relative scaling.
 - Use 'scale_by <id> sx=<fx> sy=<fy>' for non-uniform relative scaling.
 
+Adding new content:
+- Add text:  add_text <new_id> at x=<mm> y=<mm> text='<content>' [size=<mm>] [family='<font>'] [weight=normal|bold] [anchor=start|middle|end]
+- Add logo:  add_logo <new_id> at x=<mm> y=<mm> width=<mm> height=<mm> src='<asset_name>'
+- Add image: add_image <new_id> at x=<mm> y=<mm> width=<mm> height=<mm> src='<asset_or_url_or_datauri>' [role=logo|icon|qr|nfc|image] [name='<display_name>']
+  * For logo/icon/qr/nfc image sources, prefer the asset NAME only (e.g., 'xyz_logo'); the system will resolve it locally.
+
 Respond ONLY with edit commands (one per line):
 - move <element_id> to x=<x_value> y=<y_value>
 - move_by <element_id> dx=<number> dy=<number>
@@ -60,6 +66,9 @@ Respond ONLY with edit commands (one per line):
 - resize <element_id> to width=<number> height=<number>
 - scale_by <element_id> s=<number>
 - scale_by <element_id> sx=<number> sy=<number>
+- add_text <new_id> at x=<number> y=<number> text='<text>' [size=<number>] [family='<font>'] [weight=normal|bold] [anchor=start|middle|end]
+- add_logo <new_id> at x=<number> y=<number> width=<number> height=<number> src='<asset_name>'
+- add_image <new_id> at x=<number> y=<number> width=<number> height=<number> src='<token>' [role=logo|icon|qr|nfc|image] [name='<display_name>']
 """
     return prompt
 
@@ -72,6 +81,9 @@ Valid commands (one per line):
 - resize <element_id> to width=<number> height=<number>
 - scale_by <element_id> s=<number>
 - scale_by <element_id> sx=<number> sy=<number>
+- add_text <new_id> at x=<number> y=<number> text='<text>' [size=<number>] [family='<font>'] [weight=normal|bold] [anchor=start|middle|end]
+- add_logo <new_id> at x=<number> y=<number> width=<number> height=<number> src='<asset_name>'
+- add_image <new_id> at x=<number> y=<number> width=<number> height=<number> src='<token>' [role=logo|icon|qr|nfc|image] [name='<display_name>']
 
 Assumptions:
 - The origin is bottom-left; increasing y moves up.
@@ -79,13 +91,13 @@ Assumptions:
 Rules:
 - No explanations or prose.
 - No variables or expressions. Only numbers.
-- Do NOT change element IDs or suggest creating IDs.
+- Do NOT change element IDs on existing elements or suggest creating IDs for them.
+- For adding NEW elements, choose a simple, human-readable new_id (e.g., 'logo_bmw', 'text_tagline'). The system will make it unique if needed.
 - Select elements whose role matches the user's target (nfc/qr/logo/icon). If none, output nothing.
 - Use move_by for relative movement (left/right/up/down by ...).
 - For TEXT or IMAGE content changes, use ONLY 'replace' (never 'delete' and 'replace' on the same element).
-- For logo/icon/qr/nfc image swaps, output the asset NAME only (e.g., 'xyz_logo' without path or extension). The system will resolve it to a local asset.
+- For logo/icon/qr/nfc image swaps or additions, output the asset NAME only (e.g., 'xyz_logo' without path or extension). The system will resolve it to a local asset.
 """
-
 
 def generate_edit_commands(prompt, max_tokens=200):
     response = client.chat.completions.create(
