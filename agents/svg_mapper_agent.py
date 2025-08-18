@@ -68,6 +68,10 @@ def _accumulate_translate(elem, parent_map):
     return tx, ty
 
 def _infer_role_from_all(elem_type: str, elem_id: str, content: str, w: float, h: float, role_attr: str):
+    # Guard: never auto-mark TEXT as qr/nfc; only via explicit data-role
+    if elem_type == "text":
+        return role_attr.lower() if role_attr else "text"
+
     if role_attr:
         return role_attr.lower()
 
@@ -77,20 +81,67 @@ def _infer_role_from_all(elem_type: str, elem_id: str, content: str, w: float, h
     # Strong signals
     if "nfc" in idname or "nfc" in name:
         return "nfc"
-    if "qr" in idname or "qr" in name or abs(w - h) < 2.0:
+    if "qr" in idname or "qr" in name or (w and h and abs(w - h) < 2.0):
         return "qr"
-    if elem_type == "image":
-        return "logo"
+    if elem_type in ("image", "group"):
+        return "logo" if "logo" in idname or "logo" in name else "image"
     return "text"
 
-def _content_pretty(img_elem, href, default="embedded-image"):
-    # Prefer data-name if present (so base64 images still show a meaningful name)
-    dn = img_elem.attrib.get("data-name")
+def _content_pretty_from_id(eid: str):
+    if not eid:
+        return "embedded-image"
+    # try to turn 'logo_bmw_brand' → 'bmw_brand'
+    s = re.sub(r"^(logo_|icon_|qr_|nfc_)", "", eid or "", flags=re.I)
+    return s or eid
+
+def _content_pretty(img_or_group_elem, href, default="embedded-image"):
+    # Prefer data-name if present (survives base64 replaces when editor sets it)
+    dn = img_or_group_elem.attrib.get("data-name")
     if dn:
         return os.path.basename(dn)
     if href and not str(href).startswith("data:"):
         return os.path.basename(href)
-    return default
+    # Fallback: derive something human-readable from the element id
+    return _content_pretty_from_id(img_or_group_elem.attrib.get("id"))
+
+def _make_unique_id(base: str, used: set, start_idx: int = 0):
+    """Generate a unique id with prefix 'base_' and a counter, updating the counter."""
+    i = start_idx
+    candidate = f"{base}_{i}"
+    while candidate in used:
+        i += 1
+        candidate = f"{base}_{i}"
+    used.add(candidate)
+    return candidate, i + 1
+
+def _first_bbox_from_group(g, ns, parent_map, minx, miny, sx, sy):
+    """
+    Compute a group's representative bbox using its first <image> or <rect>.
+    Returns (x_doc, y_doc, w_doc, h_doc) in mm, or None if not found.
+    """
+    target = g.find(".//svg:image", ns)
+    tag = "image"
+    if target is None:
+        target = g.find(".//svg:rect", ns)
+        tag = "rect"
+    if target is None:
+        return None
+
+    x_local = _parse_float(target.attrib.get("x"), 0.0)
+    y_local = _parse_float(target.attrib.get("y"), 0.0)
+    if tag == "image":
+        w_local = _parse_float(target.attrib.get("width"), 0.0)
+        h_local = _parse_float(target.attrib.get("height"), 0.0)
+    else:  # rect
+        w_local = _parse_float(target.attrib.get("width"), 0.0)
+        h_local = _parse_float(target.attrib.get("height"), 0.0)
+
+    tx, ty = _accumulate_translate(target, parent_map)
+    x_doc = (x_local + tx - minx) * sx
+    y_doc = (y_local + ty - miny) * sy
+    w_doc = w_local * sx
+    h_doc = h_local * sy
+    return (x_doc, y_doc, w_doc, h_doc)
 
 def parse_svg_semantic(svg_path: str, save_id_patched_svg: bool = False):
     ET.register_namespace("", SVG_NS)
@@ -102,9 +153,17 @@ def parse_svg_semantic(svg_path: str, save_id_patched_svg: bool = False):
     parent_map = {c: p for p in tree.iter() for c in p}
     minx, miny, sx, sy = _get_root_scale(root)
 
+    # --- NEW: track existing ids to ensure any auto-ids are unique ---
+    used_ids = set()
+    for el in root.iter():
+        eid = el.attrib.get("id")
+        if eid:
+            used_ids.add(eid)
+
     items = []
     text_counter = 0
     image_counter = 0
+    group_counter = 0  # NEW for <g data-role>
 
     # TEXT
     for txt in root.findall(".//svg:text", ns):
@@ -116,10 +175,10 @@ def parse_svg_semantic(svg_path: str, save_id_patched_svg: bool = False):
         y_bottom = CANVAS_HEIGHT - y_doc
 
         elem_id = txt.attrib.get("id")
-        if elem_id is None:
-            elem_id = f"text_{text_counter}"
+        if elem_id is None or elem_id in used_ids:
+            # If missing or colliding, assign a unique id
+            elem_id, text_counter = _make_unique_id("text", used_ids, text_counter)
             txt.set("id", elem_id)
-            text_counter += 1
 
         content = (txt.text or "").strip()
         role_attr = txt.attrib.get("data-role", None)
@@ -152,10 +211,9 @@ def parse_svg_semantic(svg_path: str, save_id_patched_svg: bool = False):
 
         href = img.attrib.get(f"{{{XLINK_NS}}}href", img.attrib.get("href", ""))
         elem_id = img.attrib.get("id")
-        if elem_id is None:
-            elem_id = f"image_{image_counter}"
+        if elem_id is None or elem_id in used_ids:
+            elem_id, image_counter = _make_unique_id("image", used_ids, image_counter)
             img.set("id", elem_id)
-            image_counter += 1
 
         content = _content_pretty(img, href)
         role_attr = img.attrib.get("data-role", None)
@@ -164,6 +222,43 @@ def parse_svg_semantic(svg_path: str, save_id_patched_svg: bool = False):
         items.append({
             "id": elem_id,
             "type": "image",
+            "content": content,
+            "x": round(x_doc, 3),
+            "y": round(y_bottom, 3),
+            "width": round(w_doc, 3),
+            "height": round(h_doc, 3),
+            "role": role,
+            "position": describe_position(x_doc, y_bottom)
+        })
+
+    # --- NEW: GROUPS with data-role (e.g., grouped logos) ---
+    for g in root.findall(".//svg:g", ns):
+        role_attr = g.attrib.get("data-role")
+        if not role_attr:
+            continue  # only map groups that explicitly declare a role
+
+        # Compute a representative bbox from first image/rect descendant
+        bbox = _first_bbox_from_group(g, ns, parent_map, minx, miny, sx, sy)
+        if not bbox:
+            continue
+        x_doc, y_doc, w_doc, h_doc = bbox
+        y_bottom = CANVAS_HEIGHT - y_doc
+
+        elem_id = g.attrib.get("id")
+        if elem_id is None or elem_id in used_ids:
+            elem_id, group_counter = _make_unique_id("group", used_ids, group_counter)
+            g.set("id", elem_id)
+
+        # Prefer group's own data-name for content; else try first child image href
+        img_child = g.find(".//svg:image", ns)
+        href = img_child.attrib.get(f"{{{XLINK_NS}}}href", img_child.attrib.get("href", "")) if img_child is not None else ""
+        content = g.attrib.get("data-name") or _content_pretty(g, href)
+
+        role = _infer_role_from_all("group", elem_id, content, w_doc, h_doc, role_attr)
+
+        items.append({
+            "id": elem_id,
+            "type": "group",
             "content": content,
             "x": round(x_doc, 3),
             "y": round(y_bottom, 3),
