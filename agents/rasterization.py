@@ -36,6 +36,8 @@ def rasterization_node(state: WorkflowState) -> WorkflowState:
 
     state["png_path"] = png_path
     state["bw_path"] = bw_path
+    state.setdefault("gcode_relative", True)
+    state.setdefault("gcode_anchor", (4.0, 86.0))
     
     print(f"[rasterization_node] bw_path set to: {bw_path}")
 

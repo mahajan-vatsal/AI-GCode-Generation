@@ -9,7 +9,7 @@ from agents.gcodePreview_agent import gcode_preview_node
 from agents.gcode_agent import gcode_generation_node
 from graph.subgraph import build_svg_edit_subgraph
 from langgraph.types import interrupt
-from typing import TypedDict, Optional, List, Dict
+from typing import TypedDict, Optional, List, Dict, Tuple
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,6 +39,8 @@ class WorkflowState(TypedDict, total=False):
     edit_commands: Optional[str]  # Commands for editing SVG
     svg_version: int
     svg_history: List[str]
+    gcode_relative: Optional[bool]
+    gcode_anchor: Optional[Tuple[float, float]]
 
 # -------------------------
 # Node Definitions
