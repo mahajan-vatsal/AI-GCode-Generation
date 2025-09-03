@@ -158,7 +158,7 @@ def put_gcode(_, name: str, data: bytes) -> int:
 async def main():
     server = Server()
     await server.init()
-    server.set_endpoint("opc.tcp://192.168.157.213:4840/laser/")
+    server.set_endpoint("opc.tcp://0.0.0.0:4840/laser/")
 #192.168.157.213
     uri = "laser_module"
     idx = await server.register_namespace(uri)
