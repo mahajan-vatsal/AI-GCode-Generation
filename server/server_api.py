@@ -26,7 +26,7 @@ from agents.svg_agent import generate_svg_from_layout
 from agents.rasterization import rasterization_node  # returns {'png_path', 'bw_path'}
 from agents.gcode_agent import gcode_generation_node
 # We won't spawn Tkinter previews; we render images/files and serve them.
-from client_hmi import upload_gcode_to_opcua
+from client.client_hmi import upload_gcode_to_opcua
 
 # --- ADDED ---
 from opcua import Client, ua  # freeopcua client to talk to the old asyncua server

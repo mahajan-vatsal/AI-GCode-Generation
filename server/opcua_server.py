@@ -11,7 +11,7 @@ from asyncua import Server, ua
 from asyncua.common.methods import uamethod
 
 from Laser_Control.laser import Laser
-from orders import Orders
+from server.orders import Orders
 from Generate_Gcode.Generate_Gcode import Generate_Gcode
 
 # --- ADDED ---
