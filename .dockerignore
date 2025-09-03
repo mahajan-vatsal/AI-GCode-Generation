@@ -1,0 +1,20 @@
+# Ignore Python cache and compiled files
+__pycache__/
+*.py[cod]
+
+# Ignore git and local virtual environment
+.git/
+env/
+.venv/
+
+# Ignore output artefacts
+runtime/
+output*.svg
+output*.png
+output*.gcode
+
+# Ignore sample assets and intermediate downloads (optional)
+samples/
+
+# Ignore dot‑files except .env which users may provide at runtime
+.DS_Store
