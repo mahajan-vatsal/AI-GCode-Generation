@@ -1,0 +1,20 @@
+; LightBurn 1.2.01
+; GRBL device profile, current position
+; Bounds: X0 Y0 to X85.6 Y54
+G00 G17 G40 G21 G54
+G91
+M4
+; Cut @ 3000 mm/min, 10% power
+M8
+G0 X85.6Y0
+; Layer Lim
+G1 X-85.6S0F3000
+G1 Y54
+G1 X85.6
+G1 Y-54
+M9
+G1 S0
+M5
+; return to starting pos
+G0 X-85.6Y0
+M2
