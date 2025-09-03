@@ -18,7 +18,8 @@ svgpathtools==1.6.1
 svg2gcode==3.2.3
 cairosvg
 
-
-
-
-
+pyserial
+websocket-client
+asyncua
+fastapi
+python-multipart

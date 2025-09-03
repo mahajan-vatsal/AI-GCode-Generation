@@ -63,6 +63,8 @@ class GCodePreview:
         y = 0.0
         current_position = [x, y]
 
+        initialized_rel_origin = False  # NEW: shift origin once on first G91
+
         for raw in lines:
             line = raw.strip()
             if not line or line.startswith((';', '(')):
@@ -74,6 +76,13 @@ class GCodePreview:
                 continue
             if line.startswith('G91'):
                 abs_mode = False
+                # Shift drawing origin once so the relative anchor (e.g. X4 Y86)
+                # lands near (0,0) on the canvas.
+                if not initialized_rel_origin:
+                    x = -self.anchor_px[0]
+                    y = -self.anchor_px[1]
+                    current_position = [x, y]
+                    initialized_rel_origin = True
                 continue
 
             # Spindle / Laser on/off
@@ -225,26 +234,6 @@ def gcode_preview_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     LangGraph-compatible node that renders a PNG preview from G-code and
     **waits until the preview window is closed** (when open_gcode_preview=True).
-
-    Inputs (from state):
-      - gcode_content (str)            : REQUIRED. The G-code text.
-      - gcode_preview_save_path (str)  : OPTIONAL. Where to save the preview PNG.
-      - open_gcode_preview (bool)      : OPTIONAL. Default True. Open Tk window & block.
-      - preview_window_title (str)     : OPTIONAL. Title for the window.
-      - gcode_anchor / offset (tuple)  : OPTIONAL. Anchor in mm, default (4.0, 86.0).
-      - gcode_preview_config (dict)    : OPTIONAL. Extra config overrides:
-          {
-            "card_width": 85.0,
-            "card_height": 54.0,
-            "scale_factor": 8,
-            "background_color": "#FFFFFF",
-            "forground_color": "#000000",
-            "offset": (4.0, 86.0),
-            "line_width": 1
-          }
-
-    Outputs (into state):
-      - gcode_preview_path (str): path to the saved PNG preview.
     """
     gcode_text = state.get("gcode_content")
     if not gcode_text or not isinstance(gcode_text, str) or not gcode_text.strip():
@@ -284,7 +273,7 @@ def gcode_preview_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     # Standalone test usage (not used by LangGraph)
-    test_file = "output_v003.gcode"
+    test_file = "output.gcode"
     if os.path.exists(test_file):
         with open(test_file, "r") as f:
             gcode_data = f.read()

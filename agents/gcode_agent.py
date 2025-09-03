@@ -1,5 +1,7 @@
+# gcode_agent.py
 # Updated generate_gcode.py as LangGraph-compatible node
 from PIL import Image
+from pathlib import Path
 
 def generate_scanline_gcode(
     bw_image_path,
@@ -8,39 +10,43 @@ def generate_scanline_gcode(
     feedrate=4000,
     laser_power=400,
     brightness_threshold=128,
-    use_relative=False,             # NEW: enable G91-style relative positioning
-    anchor=(0.0, 0.0),              # NEW: optional absolute anchor like Generate_gcode.py
+    use_relative=False,             # Enable G91-style relative positioning
+    anchor=(0.0, 0.0),              # Anchor like Generate_gcode.py
 ):
     """
     If use_relative is True:
-      - Header: G90 to anchor (if any), then switch to G91 (relative).
-      - All subsequent G0/G1 moves are emitted as relative deltas but follow
-        the exact same toolpath you already generate.
+      - Header: start in G91 (relative) immediately (no G90 line).
+      - If anchor != (0,0): do a relative move to that anchor (G1 Xax Yay S0).
+      - Subsequent moves are emitted as relative deltas (same path as before).
+
     If use_relative is False:
-      - Behavior is unchanged from your original absolute-position generator.
+      - Same as before: start in absolute (G90) and emit absolute X/Y.
     """
-    img = Image.open(bw_image_path).convert('L')  # grayscale for brightness thresholding
+    img = Image.open(bw_image_path).convert('L')
     width, height = img.size
 
     gcode = []
     gcode.append("; Raster engraving from grayscale image")
-    gcode.append("G90 ; Absolute positioning")
     gcode.append("G21 ; Units in mm")
     gcode.append(f"F{feedrate}")
     gcode.append("M5 ; Laser OFF")
 
-    # Track the last absolute position we *intended* to be at (for relative deltas)
+    # Track the last absolute position we *intend* (used to compute deltas in relative mode)
     last_pos = [0.0, 0.0]
 
     if use_relative:
+        # Start directly in relative mode (requested change)
+        gcode.append("G91 ; Relative positioning")
         ax, ay = anchor
-        # Move to anchor in absolute mode (like Generate_gcode.py), then switch to relative
         if abs(ax) > 1e-9 or abs(ay) > 1e-9:
+            # Make the initial anchor move as a *relative* move
             gcode.append(f"G1 X{ax:.3f} Y{ay:.3f} S0")
             last_pos = [ax, ay]
         else:
             last_pos = [0.0, 0.0]
-        gcode.append("G91 ; Relative positioning")
+    else:
+        # Original behavior
+        gcode.append("G90 ; Absolute positioning")
 
     def emit_move(x_abs, y_abs, rapid=False):
         """
@@ -54,7 +60,6 @@ def generate_scanline_gcode(
         if use_relative:
             dx = x_abs - last_pos[0]
             dy = y_abs - last_pos[1]
-            # Avoid emitting pure zero-delta moves
             if abs(dx) > 1e-9 or abs(dy) > 1e-9:
                 gcode.append(f"{code} X{dx:.3f} Y{dy:.3f}")
                 last_pos[0] = x_abs
@@ -86,11 +91,9 @@ def generate_scanline_gcode(
 
             if pixel_value < brightness_threshold:
                 if not laser_on:
-                    # Travel move to start of dark segment
                     emit_move(tx, ty, rapid=True)
                     gcode.append(f"M3 S{laser_power}")
                     laser_on = True
-                # Cutting move along the same Y to current X
                 emit_move(tx, ty, rapid=False)
             else:
                 if laser_on:
@@ -101,17 +104,21 @@ def generate_scanline_gcode(
             gcode.append("M5")
             laser_on = False
 
-    # Return to origin (keep original behavior)
+    # Return to origin (unchanged)
     if use_relative:
         gcode.append("G90 ; Back to absolute for return")
     gcode.append("G0 X0 Y0 ; Return to origin")
     gcode.append("M2 ; End of program")
 
-    with open(gcode_path, "w") as f:
+    # Ensure output directory exists
+    out_path = Path(gcode_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with out_path.open("w", encoding="utf-8") as f:
         f.write("\n".join(gcode))
 
-    print(f"✅ G-code successfully written to '{gcode_path}'.")
-    return "\n".join(gcode)  # Return G-code as string
+    print(f"✅ G-code successfully written to '{out_path}'.")
+    return "\n".join(gcode)
 
 
 def gcode_generation_node(state):
@@ -120,12 +127,22 @@ def gcode_generation_node(state):
     if not bw_path:
         raise ValueError("Missing 'bw_path' in state from rasterization step.")
 
-    gcode_path = bw_path.replace("_bw.png", ".gcode")
+    bw_p = Path(bw_path)
+    parent = bw_p.parent if bw_p.parent.as_posix() not in ("", ".") else Path(".")
+
+    # Derive a stable .gcode name next to the BW image
+    name = bw_p.name
+    if name.endswith("_bw.png"):
+        out_name = name.replace("_bw.png", ".gcode")
+    else:
+        out_name = bw_p.stem + ".gcode"
+
+    gcode_path = parent / out_name
 
     print(f"[gcode_generation_node] Using bw_path: {bw_path}")
     print(f"[gcode_generation_node] Output gcode_path: {gcode_path}")
 
-    # NEW: optional controls from state (default keeps your old behavior)
+    # Optional controls from state
     use_relative = bool(state.get("gcode_relative", False))
     anchor = state.get("gcode_anchor", (0.0, 0.0))
     if isinstance(anchor, (list, tuple)) and len(anchor) == 2:
@@ -134,15 +151,17 @@ def gcode_generation_node(state):
         anchor = (0.0, 0.0)
 
     gcode_text = generate_scanline_gcode(
-        bw_image_path=bw_path,
-        gcode_path=gcode_path,
+        bw_image_path=str(bw_p),
+        gcode_path=str(gcode_path),
         pixel_size_mm=0.1,
         feedrate=4000,
         laser_power=400,
         brightness_threshold=128,
-        use_relative=use_relative,  # NEW
-        anchor=anchor,              # NEW
+        use_relative=use_relative,  # Start directly in G91 if True
+        anchor=anchor,
     )
 
     state["gcode_content"] = gcode_text
+    state["gcode_path"] = str(gcode_path)
+    state["gcode_output_path"] = str(gcode_path)
     return state

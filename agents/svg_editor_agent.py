@@ -23,7 +23,7 @@ def dy_to_svg(dy_bottom_left: float) -> float:
     return -dy_bottom_left
 
 # Allow typical XML id characters: letters, digits, _, -, :, .
-ID = r"([A-Za-z_][A-Za-z0-9_\-:.]*)"
+ID = r'(?:["\']?([A-Za-z_][A-Za-z0-9_\-:.]*)["\']?)'
 
 # Accept move_by with optional dy (defaults to 0)
 MOVE_BY_REGEX = rf"move_by\s+{ID}\s+dx=([-+]?\d*\.?\d+)(?:\s+dy=([-+]?\d*\.?\d+))?"
@@ -465,4 +465,4 @@ def svg_editor_node(state):
 
 
 
-#add_text tagline at x=10 y=6 text='Innovation for everyone' size=3.2
+#add_text tagline at x=3 y=6 text='Innovation for everyone' size=3.2
