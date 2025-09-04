@@ -1,0 +1,18 @@
+services:
+  api:
+    image: vatsalm1132/ai-gcode-generation:latest
+    container_name: ai-gcode-api
+    ports:
+      - "8080:8080"
+    env_file: .env
+
+  ui:
+    image: vatsalm1132/ai-gcode-generation:latest
+    container_name: ai-gcode-ui
+    command: >
+      sh -c "streamlit run server/streamlit.py
+             --server.address 0.0.0.0
+             --server.port 8501"
+    ports:
+      - "8501:8501"
+    env_file: .env
