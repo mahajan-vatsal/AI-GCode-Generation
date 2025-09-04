@@ -1,5 +1,5 @@
-# app_streamlit.py
-# Run:  streamlit run app_streamlit.py
+# streamlit.py
+# Run:  streamlit run streamlit.py
 # This UI talks to your FastAPI (server_api.py).
 
 import streamlit as st
