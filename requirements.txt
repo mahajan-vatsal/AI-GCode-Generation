@@ -23,3 +23,6 @@ websocket-client
 asyncua
 fastapi
 python-multipart
+opcua 
+streamlit
+requests
