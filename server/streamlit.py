@@ -5,7 +5,8 @@
 import streamlit as st
 import requests
 import os
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080")
+
+DEFAULT_API_BASE = os.getenv("API_BASE_URL", "http://api:8080")  # <— default to service name in compose
 
 st.set_page_config(page_title="AI-GCode UI", page_icon="🛠️", layout="wide")
 
@@ -14,10 +15,11 @@ with st.sidebar:
     st.header("Connection")
     SERVER_URL = st.text_input(
         "Server API URL",
-        value="http://127.0.0.1:8080",
+        value=DEFAULT_API_BASE,  # <— use env/default, not 127.0.0.1
         help="Your FastAPI (server_api.py) base URL",
         key="server_url_input",
     )
+    st.caption(f"Resolved API base: {SERVER_URL}")
     st.divider()
     st.header("OPC UA")
     OLD_SERVER_ENDPOINT = st.text_input(

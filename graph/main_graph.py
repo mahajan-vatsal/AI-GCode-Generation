@@ -2,7 +2,7 @@ from langgraph.graph import StateGraph
 import os
 from pathlib import Path
 import glob
-from client_hmi import upload_gcode_to_opcua
+from client.client_hmi import upload_gcode_to_opcua
 from agents.ocr_agent import ocr_info_extraction
 from agents.visual_analysis_agent import visual_analysis_agent
 from agents.svg_agent import generate_svg_from_layout

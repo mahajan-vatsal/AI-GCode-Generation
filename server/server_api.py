@@ -157,7 +157,9 @@ def node_svg_file(job_id: str):
         raise HTTPException(404, "No SVG for this job. Run /node/{job_id}/svg/generate first.")
     return FileResponse(svg, media_type="image/svg+xml", filename=Path(svg).name)
 
-
+@app.get("/health")
+def health():
+    return {"ok": True}
 
 @app.get("/node/{job_id}/gcode/file")
 def node_gcode_file(job_id: str):

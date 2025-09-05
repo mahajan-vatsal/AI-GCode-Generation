@@ -159,7 +159,7 @@ async def main():
     server = Server()
     await server.init()
     server.set_endpoint("opc.tcp://0.0.0.0:4840/laser/")
-#192.168.157.213
+#192.168.157.213/laser_module
     uri = "laser_module"
     idx = await server.register_namespace(uri)
 
