@@ -1,18 +1,45 @@
 services:
   api:
-    image: vatsalm1132/ai-gcode-generation:latest
+    build: .
     container_name: ai-gcode-api
-    ports:
-      - "8080:8080"
+    entrypoint: ["/usr/local/bin/uvicorn"]
+    command: ["server.server_api:app","--host","0.0.0.0","--port","8080"]
+    ports: ["8080:8080"]
     env_file: .env
+    environment:
+      PYTHONPATH: /app
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+      start_period: 10s
 
   ui:
-    image: vatsalm1132/ai-gcode-generation:latest
+    build: .
     container_name: ai-gcode-ui
-    command: >
-      sh -c "streamlit run server/streamlit.py
-             --server.address 0.0.0.0
-             --server.port 8501"
-    ports:
-      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["streamlit"]
+    command: ["run","server/streamlit.py","--server.address","0.0.0.0","--server.port","8501"]
+    ports: ["8501:8501"]
     env_file: .env
+    environment:
+      API_BASE_URL: "http://api:8080"
+      PYTHONPATH: /app
+
+  opcua:
+    build: .
+    container_name: ai-gcode-opcua
+    entrypoint: ["python","server/opcua_server.py"]
+    # Make sure server/opcua_server.py binds 0.0.0.0 and listens on 4840
+    # e.g., in asyncua: server.set_endpoint("opc.tcp://0.0.0.0:4840/laser/")
+    ports:
+      - "4840:4840"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "exec 3<>/dev/tcp/127.0.0.1/4840 && echo ok"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+      start_period: 10s
