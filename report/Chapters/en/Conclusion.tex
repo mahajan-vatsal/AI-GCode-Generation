@@ -1,0 +1,16 @@
+\chapter{Conclusion and Future Scope}
+
+This project presented a complete pipeline to transform a photographed business card into laser-ready G-code within the context of the Digital Factory. By integrating computer vision, OCR, vector graphics, rasterisation, G-code generation, and agent-based orchestration with LangGraph, the system demonstrated how a traditionally manual process can be automated and streamlined.
+The implementation showed that:
+\begin{itemize}
+	\item Information extraction and layout preservation were achieved using a vision-language model (Qwen2.5-VL) and OCR.
+\item SVG generation and LLM-assisted editing enabled both automation and human-in-the-loop refinement, balancing efficiency with control.
+\item Rasterisation and binarisation produced engraving-ready bitmaps, ensuring clarity and contrast.
+\item Scanline G-code generation with preview translated designs into precise toolpaths, with user validation reducing risk of errors.
+\item The LangGraph orchestration provided modularity, robustness, and scalability, allowing individual agents to work independently while contributing to a coherent workflow.
+
+\end{itemize}
+
+Overall, the project validated its requirements: the pipeline proved capable of automatically generating engraving instructions, with opportunities for user-driven refinements, thereby enhancing the functionality of the Laser Engraver Module in an Industry 4.0 setting.
+
+

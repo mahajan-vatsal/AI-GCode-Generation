@@ -1,0 +1,43 @@
+\chapter{Introduction}
+
+\setlength{\parskip}{1em} 
+
+\section{Motivation}
+
+The Digital Factory at the University of Applied Sciences Emden/Leer demonstrates Industry 4.0 technologies \cite{PlattformI40:WhatIsIndustrie40} through modular setups that integrate various production units. Among these is the Laser Engraver Module, which can work in combination with other modules such as robotic arms and conveyor systems to form flexible manufacturing processes.
+
+While the laser engraver is capable of producing high-quality results, preparing engraving jobs remains a manual and time-consuming task. In particular, creating G-code from business card designs requires the operator to manually extract text, logos, or QR codes, recreate layouts, and then generate the engraving file. This lack of automation limits the module’s efficiency and repeatability within a smart factory setting.
+
+To overcome these limitations, this project introduces an AI-based pipeline that can automatically generate laser-ready G-code directly from a photographed business card. By combining computer vision, OCR, layout analysis, and vector graphics generation, the system reduces manual effort, ensures consistency, and enables the Laser Engraver Module to operate more autonomously within the Digital Factory.
+
+
+\section{Goals and Requirements}
+
+The primary goal of this project is to develop an automated workflow that converts a photographed business card into laser-ready G-code for the Laser Engraver Module in the Digital Factory \cite{PlattformI40:WhatIsIndustrie40}. This supports faster, more reliable, and repeatable engraving tasks without extensive manual preparation.
+
+To achieve this, the system must meet the following requirements:
+
+\begin{itemize}
+	\item \textbf{Information extraction:} Automatically detect and read text, logos, QR codes, and other visual elements from the card using computer vision and OCR.
+	\item \textbf{Layout preservation:} Convert detected elements into millimetre-accurate positions on a standard card size (85 × 54 mm). 
+	\item \textbf{SVG generation and editing:} Assemble an SVG design that represents the card and allow optional adjustments through command-based or natural language instructions.
+	\item \textbf{Rasterization and binarization:} Produce clean black-and-white images from the SVG to ensure high-contrast engraving quality.
+	\item \textbf{G-code generation and preview:} Translate the processed image into optimized G-code and provide a preview of the laser paths for verification.
+	\item \textbf{Workflow integration:} Orchestrate all components within a modular LangGraph pipeline, ensuring scalability and smooth interaction between agents.
+\end{itemize}
+
+
+By fulfilling these requirements, the project establishes an end-to-end system that improves usability, reduces errors, and enhances the integration of the Laser Engraver Module in the Digital Factory.
+
+\section{Documentation Structure}
+
+This report is divided into six main chapters:
+
+\begin{itemize}
+\item \textbf{Chapter 1 – Introduction:} Outlines the motivation, goals, requirements, and structure of the project documentation.
+\item \textbf{Chapter 2 – Basic Concepts:} Explains the theoretical background and technologies applied, such as OCR, computer vision, SVG graphics, G-code generation, and LangGraph orchestration.
+\item \textbf{Chapter 3 – Implementation:} Describes the step-by-step development of the system, based on the implemented modules and agents.
+\item \textbf{Chapter 4 – Validation of Requirements:} Evaluates how effectively the developed system meets the defined goals and requirements.
+\item \textbf{Chapter 5 – Conclusion:} Summarises the key results and contributions of the project.
+\item \textbf{Chapter 6 – Future Scope:} Highlights potential improvements and directions for further research and development.
+\end{itemize}

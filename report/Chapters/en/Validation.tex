@@ -1,0 +1,56 @@
+\chapter{Validation of the Requirements and Limitations}
+
+\section{Validation}
+This section validates how each project requirement was fulfilled through the implementation and testing processes.
+
+\subsection{Information Extraction}
+\begin{itemize}
+	\item The OCR Agent successfully extracted structured text (name, role, email, phone) using Qwen2.5-VL via Fireworks API.
+	\item The Visual Analysis Agent identified layout elements such as logos and QR codes with bounding boxes mapped to millimetre coordinates (85×54 mm).
+	\end{itemize}
+
+
+\subsection{Layout Preservation}
+\begin{itemize}
+	\item The SVG Agent embedded extracted content into a vector file, preserving relative positions and scales.
+	The Y-axis inversion (from bottom-left to SVG’s top-left) was handled consistently, ensuring fidelity to physical card proportions.
+	\item Validation involved overlaying bounding boxes on the generated SVG and comparing them with original card layouts, demonstrating positional accuracy consistent.
+\end{itemize}
+
+\subsection{SVG Generation and Editing}
+\begin{itemize}
+	\item The system produced initial SVG files automatically, which could then be refined using either command-based editing or natural language editing (via the LLM-SVG Agent).
+	Human-in-the-loop testing confirmed that edits such as “Replace 'Yaman Alsaady' with 'Vatsal Mahajan'.” or “add\_text tagline at x=3 y=6 text='Created by Vatsal' size=3.2” were correctly parsed and applied.
+\end{itemize}
+
+\subsection{SVG Generation and Editing}
+\begin{itemize}
+	\item The system produced initial SVG files automatically, which could then be refined using either command-based editing or natural language editing (via the LLM-SVG Agent).
+	\item Human-in-the-loop testing confirmed that edits such as “Replace 'Yaman Alsaady' with 'Vatsal Mahajan'.” or “add\_text tagline at x=3 y=6 text='Created by Vatsal' size=3.2” were correctly parsed and applied.
+\end{itemize}
+
+\subsection{Rasterisation and Binarisation}
+\begin{itemize}
+	\item The Rasterisation Module (CairoSVG + OpenCV) converted SVGs into high-contrast bitmaps, ensuring readability for raster scanline engraving.
+	\item Empirical tests showed that thresholding removed background noise and preserved fine details such as text edges and QR code readability.
+\end{itemize}
+
+\subsection{G-code Generation and Preview}
+\begin{itemize}
+	\item The G-code Agent implemented a zig-zag scanline algorithm, minimizing non-productive travel while maintaining engraving precision.
+	\item The G-code Preview Agent displayed the toolpaths, enabling error detection before physical execution.
+	\item Comparative checks between preview and engraved outputs confirmed high fidelity, in line with G-code raster engraving principles.
+\end{itemize}
+
+\section{Limitation}
+Although the system fulfils its primary objective of generating laser-ready G-code from business card images, several limitations remain:
+\begin{itemize}
+	\item When logos and text are embedded within the same region, the system prioritises the text, often leaving the logo unprocessed. This limits the accuracy of reproducing complex card layouts.
+	\item The vision model is not explicitly trained for arbitrary logo recognition. Logos are only reproduced if they already exist in the system’s database, restricting generalisation to unseen designs.
+	\item In cases where logos are retrieved from the database, the system writes them into the SVG with reduced size, which can distort the intended visual balance of the design.
+	\item The model successfully detects the position and size of QR codes, it does not render them into the SVG due to security restrictions.
+	\item Both the large language model (LLM) and vision-language model (VLM) currently run on free credits. Once these are exhausted, continued operation requires subscription costs, which may affect scalability.
+	\item The system relies on openly available, free versions of LLMs and VLMs, which show limited accuracy compared to commercial or fine-tuned models, particularly for detailed layout extraction.
+	\item The editing interface interprets only a narrow set of commands via regex matching (e.g., move, delete, replace, add\_text). This restricts the naturalness of user interactions and may limit usability in broader contexts.
+\end{itemize}
+
