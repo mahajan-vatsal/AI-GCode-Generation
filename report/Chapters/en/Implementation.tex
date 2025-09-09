@@ -297,7 +297,7 @@ To enable accessibility, the Web UI can be triggered directly from the project e
 \subsubsection{Start the Backend API Server}
 
 \begin{lstlisting}[language=bash,caption={Start backend Server}, label={lst:backend}]
-uvicorn server\_api:app --host 0.0.0.0 --port 8080
+uvicorn server.server_api:app --host 0.0.0.0 --port 8080
 \end{lstlisting}
 
 \begin{itemize}
@@ -320,7 +320,7 @@ This starts your backend API layer ~\ref{unicorn}, exposing endpoints like /uplo
 \subsubsection{Frontend Web UI}
 In another terminal write the following command and in the terminal it looks like ~\ref{streamlit}:
 \begin{lstlisting}[language=bash,caption={Start Frontend Web UI}, label={lst:Frontend}]
-	streamlit run streamlit.py --server.address 0.0.0.0 --server.port 8501
+	streamlit run server/streamlit.py --server.address 0.0.0.0 --server.port 8501
 \end{lstlisting}
 
 
