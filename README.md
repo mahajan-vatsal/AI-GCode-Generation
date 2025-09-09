@@ -37,67 +37,6 @@ The entire sequence is orchestrated via a LangGraph graph in **graph/main_graph.
 
 ---
 
-## 📊 LangGraph Flow
-Below is the actual LangGraph pipeline used in this project:
-
-<img width="500" height="500" alt="Langgraph flow" src="https://github.com/user-attachments/assets/c3f595e6-398b-45b5-be69-f8b26365d99d" />
-
----
-
-## 🚀 Example Workflow — From Card to Code
-
-1. **📷 Upload Your Business Card**  
-   Provide an image (`.jpg`, `.png`, or scanned PDF).  
-   The system reads it in and preps for analysis.
-
-2. **🔍 Layout & Element Detection**  
-   **Visual Analysis Agent** finds logos, text blocks, QR codes, NFC chips.  
-   Output: structured layout map.
-
-3. **✏️ OCR & Semantic Mapping**  
-   **OCR Agent** extracts text content.  
-   **SVG Mapper Agent** maps items into meaningful IDs (e.g., `logo_top_left`, `name_center`).
-
-4. **🖌️ AI-Powered SVG Design**  
-   **SVG Agent** creates a vector business card design.  
-   Logos are traced into vector paths for crisp engraving.
-
-5. **🛠️ Intelligent Editing**  
-   Ask the system: *“Move logo to top-right”* → instantly updates SVG via **LLM-SVG Agent**.
-
-6. **🖼️ Rasterization & Binarization**  
-   **Rasterization Agent** converts SVG to PNG.  
-   **Binarization** ensures clean black/white separation for engraving.
-
-7. **🖋️ Laser-Ready G-Code**  
-   **G-Code Agent** generates optimized toolpaths. 
-   Supports raster engraving for smooth fills.
-
-8. **👀 Preview & Export**  
-   **G-Code Preview Agent** renders the final toolpaths before you hit the laser.
-
----
-
-## 📂 Repository Structure
-| Directory/File                    | Contents/Role                                               |
-| --------------------------------- | ----------------------------------------------------------- |
-| `agents/ocr_agent.py`             | Business card OCR via Fireworks                             |
-| `agents/visual_analysis_agent.py` | Layout detection and enrichment                             |
-| `agents/svg_agent.py`             | SVG generation from layout                                  |
-| `agents/svg_mapper_agent.py`      | Assigns IDs and maps SVG elements                           |
-| `agents/llm_svg_agent.py`         | Generates edit commands from user instructions using an LLM |
-| `agents/svg_editor_agent.py`      | Parses commands (move, delete, replace) and updates SVG     |
-| `agents/rasterization.py`         | Converts SVG to PNG and to black‑and‑white                  |
-| `agents/gcode_agent.py`           | Generates scanline G‑code from a bitmap                     |
-| `agents/gcodePreview_agent.py`    | Previews G‑code toolpaths                                   |
-| `graph/main_graph.py`             | Defines the primary LangGraph workflow                      |
-| `graph/subgraph.py`               | Subgraph for interactive SVG editing                        |
-| `langgraph.json`                  | LangGraph configuration for CLI/host                        |
-| `requirements.txt`                | Python dependencies for this project                        |
-
-
----
-
 ## 📦 Installation
 1. **Clone the repo** (or download the ZIP if using internal connectors):
 ```bash
@@ -133,7 +72,68 @@ langgraph dev
 - **output_edited.png** and **output_edited_bw.png** – rasterized versions used for engraving.
 - **output_edited.gcode** – the final G‑code file ready for your CNC or laser engraver.
 
+## 📦 Workflow with Docker
+1. **Clone the repo** (or download the ZIP if using internal connectors):
+```bash
+git clone https://github.com/mahajan-vatsal/AI-GCode-Generation.git
+```
+
+2. **Build the Docker Image**:
+```bash
+cd AI-GCode-Generation
+docker-compose build
+```
+
+3. **Launch the Container**:
+```bash
+docker-compose up
+```
+
+4. **Access the System Locally**:
+```bash
+Web UI: http://localhost:8501
+Backend API: http://localhost:8080
+```
+---
+
+## 📦 Triggering the Web UI
+
+After cloning the repository, set up a virtual environment, install the required dependencies, and configure the necessary API keys.
+1. **Start the Backend API Server**:
+```bash
+uvicorn server.server_api:app --host 0.0.0.0 --port 8080
+```
+
+2. **Frontend Web UI**: 
+```bash
+streamlit run server/streamlit.py --server.address 0.0.0.0 --server.port 8501
+```
+
+3. **API Documentation with FastAPI**:
+```bash
+http://localhost:8080/docs
+```
+---
+
+## 📊 LangGraph Flow
+Below is the actual LangGraph pipeline used in this project:
+
+<img width="500" height="500" alt="Langgraph flow" src="https://github.com/user-attachments/assets/c3f595e6-398b-45b5-be69-f8b26365d99d" />
 
 ---
 
-## 🖼 Output Example
+## Web UI 
+
+<img width="1440" height="900" alt="WebUI" src="https://github.com/user-attachments/assets/c0596157-5213-4502-8164-eb700253bf7b" />
+
+---
+## API Documentation with FastAPI
+
+<img width="1440" height="895" alt="API" src="https://github.com/user-attachments/assets/c887b3d5-c4a5-4e0a-9ac0-29be0422186f" />
+
+
+
+
+
+
+
