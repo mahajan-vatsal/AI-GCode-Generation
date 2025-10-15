@@ -24,7 +24,7 @@ When you look at a business card you don’t just see text – you see logos, ic
 
 ## 🛠 How it works
 
-1. **Extract information** — The **ocr_agent** uses an advanced vision model (via Fireworks/OpenAI) to read the card and return structured JSON fields (name, title, contact details, conference info, etc.).
+1. **Extract information** — The **ocr_agent** uses an advanced vision model (via Fireworks) to read the card and return structured JSON fields (name, title, contact details, conference info, etc.).
 2. **Detect layout elements** —The **visual_analysis_agent** calls a vision language model (Qwen2.5‑VL) to detect bounding boxes for all visual items (text, logos, QR code, NFC chip) and enriches them with sizes in millimetres.
 3. **Generate SVG design** — The **svg_agent** assembles an SVG from the detected text blocks, logos, icons and optional user overrides. It can embed QR codes and NFC icons and flips the Y‑axis to match millimetre coordinates.
 4. **Preview and edit** — Users can preview the card and optionally modify it. The **svg_preview_agent** launches a zoomable Tkinter window; the **svg_mapper_agent** maps semantic elements and gives them IDs; the **llm_svg_agent** uses a language model to turn free‑form instructions into edit commands; the **svg_editor_agent** applies those commands (move, delete, replace) to the SVG.
@@ -52,7 +52,7 @@ pip install -r requirements.txt
 ```
 3. **API keys** – Create a **.env** file in the project root with the following keys:
 ```bash
-# Fireworks (OpenAI) for OCR and layout detection
+# Fireworks for OCR and layout detection
 FIREWORKS_API_KEY=your_fireworks_key_here
 # OpenRouter (Mistral) for generating SVG edit commands
 OPENROUTER_API_KEY=your_openrouter_key_here
@@ -71,6 +71,27 @@ langgraph dev
 - **output.svg / output_edited.svg** – the generated vector business card.
 - **output_edited.png** and **output_edited_bw.png** – rasterized versions used for engraving.
 - **output_edited.gcode** – the final G‑code file ready for your CNC or laser engraver.
+
+---
+
+## 📦 Triggering the Web UI
+
+After cloning the repository, set up a virtual environment, install the required dependencies, and configure the necessary API keys.
+1. **Start the Backend API Server**:
+```bash
+uvicorn server.server_api:app --host 0.0.0.0 --port 8080
+```
+
+2. **Frontend Web UI**: 
+```bash
+streamlit run server/streamlit.py --server.address 0.0.0.0 --server.port 8501
+```
+
+3. **API Documentation with FastAPI**:
+```bash
+http://localhost:8080/docs
+```
+---
 
 ## 📦 Workflow with Docker
 1. **Clone the repo** (or download the ZIP if using internal connectors):
@@ -94,25 +115,7 @@ docker-compose up
 Web UI: http://localhost:8501
 Backend API: http://localhost:8080
 ```
----
 
-## 📦 Triggering the Web UI
-
-After cloning the repository, set up a virtual environment, install the required dependencies, and configure the necessary API keys.
-1. **Start the Backend API Server**:
-```bash
-uvicorn server.server_api:app --host 0.0.0.0 --port 8080
-```
-
-2. **Frontend Web UI**: 
-```bash
-streamlit run server/streamlit.py --server.address 0.0.0.0 --server.port 8501
-```
-
-3. **API Documentation with FastAPI**:
-```bash
-http://localhost:8080/docs
-```
 ---
 
 ## 📊 LangGraph Flow
